@@ -1,0 +1,108 @@
+import os
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+from sklearn.linear_model import LogisticRegression
+from sklearn.model_selection import train_test_split
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.metrics import classification_report
+from sklearn.ensemble import RandomForestClassifier
+from tabulate import tabulate
+from sklearn.model_selection import GridSearchCV
+
+os.getcwd()
+
+WC_Matches = pd.read_csv('results.csv', parse_dates=True)
+WC_pasts = pd.read_csv('WorldCups.csv', parse_dates=True)
+WC_players = pd.read_csv('WorldCupPlayers.csv')
+pd.set_option('display.max_columns', len(WC_Matches.columns))
+
+
+WC_Matches.dropna(inplace=True)
+WC_Matches.info()
+WC_Matches.head()
+
+
+
+WC_Matches.groupby('Home Team Name')['Home Team Goals'].mean().sort_values()[:64].plot(kind='bar')
+plt.xticks(fontsize=7, rotation=45)
+plt.title('Historical average goal scored in matches in Home ground')
+plt.ylabel('Average Goals Scored')
+plt.show()
+plt.clf()
+
+WC_Matches.groupby('Away Team Name')['Away Team Goals'].mean()[:64].sort_values().plot(kind='bar')
+plt.xticks(fontsize=7,rotation=45)
+plt.title('Historical average goal scores in matches in Away ground')
+plt.ylabel('Average Goals Scored')
+plt.show()
+plt.clf()
+
+
+
+WC_Matches['dif'] = WC_Matches['Home Team Goals'] - WC_Matches['Away Team Goals']
+WC_Matches['Win'] = ['Yes' if x > 0 else 'No' for x in WC_Matches['dif']]
+
+
+
+WC_Matches = WC_Matches.drop(columns=['date', 'tournament','city','country','neutral','Home Team Goals', 'Away Team Goals','dif'])
+WC_Matches['Home Team Name'] = WC_Matches['Home Team Name'].astype('category')
+WC_Matches['Away Team Name'] = WC_Matches['Away Team Name'].astype('category')
+WC_Matches['Win'] = WC_Matches['Win'].astype('category')
+WC_Matches.info()
+
+features = WC_Matches.drop(columns='Win')
+X= pd.get_dummies(features, columns=['Home Team Name','Away Team Name'])
+y=WC_Matches['Win']
+X_train, X_test, y_train, y_test = train_test_split(X, y, train_size=0.8, random_state=5)
+dtm = DecisionTreeClassifier()
+lm = LogisticRegression()
+rfm = RandomForestClassifier(random_state=1)
+
+dtm.fit(X_train, y_train)
+y_pred_d = dtm.predict(X_test)
+
+lm.fit(X_train, y_train)
+y_pred_l = lm.predict(X_test)
+
+rfm.fit(X_train, y_train)
+y_pred_r = rfm.predict(X_test)
+
+
+print('Decision Tree Classifier: ',classification_report(y_test,y_pred_d))
+print('Logistic Regression: ',classification_report(y_test,y_pred_l))
+print('Random Forest Classifier: ',classification_report(y_test,y_pred_r))
+
+#params_rf = {'C':[0.2, 0.4,0.6,0.8,1]}
+#grid_search = GridSearchCV(estimator = lm,param_grid=params_rf,cv=5)
+#grid_search.fit(X_train,y_train)
+#best_model = grid_search.best_estimator_
+#best_model_pred = best_model.predict(X_test)
+#print(classification_report(y_test,best_model_pred))
+
+format = X.head(1) # since I am predicting single match, I am not using iloc for changing the feature variable values
+format = format * 0  #dont change this
+#format['Away Team Name_England'] = 0   #dont change this
+#print(tabulate(format, headers='keys'))
+
+#To Test
+Home_team_name = input('Input First Team Name if not playing in Home ground or Home Team if playing in home ground.(Use First alphabet capitalized)')
+Away_team_name = input('Input Second Team Name if not playing in Home ground or Away Team if playing in Away ground.(Use First alphabet capitalized)')
+format['Home Team Name_'+Home_team_name] = 1  # change this for prediction
+format['Away Team Name_'+Away_team_name] = 1      # change this for prediction
+print (lm.predict_proba(format))
+print (lm.predict(format), Home_team_name +" win")
+
+H_A_game=WC_Matches[((WC_Matches['Home Team Name'] == Home_team_name) & (WC_Matches['Away Team Name'] == Away_team_name))\
+    |((WC_Matches['Home Team Name'] == Away_team_name) & (WC_Matches['Away Team Name'] == Home_team_name))]
+print (H_A_game)
+
+print(tabulate(WC_pasts.head(),headers='keys'))
+sns.countplot(data=WC_pasts,x='Winner').set_title('World cup winner counts')
+plt.xlabel('Country')
+plt.ylabel('Times Won')
+plt.show()
+plt.clf()
+
+
